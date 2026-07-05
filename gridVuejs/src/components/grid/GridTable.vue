@@ -17,11 +17,20 @@ const props = defineProps({
   },
 })
 
-// Methods
+// Data
+const gridMargin = 16
+
+// Computed
+const calcHeight = (): string => {
+  if (props.customHeight !== 0) {
+    return props.customHeight - gridMargin + 'px'
+  }
+  return '100%'
+}
 </script>
 
 <template>
-  <div class="t-sticky-wrap">
+  <div class="t-sticky-wrap" :style="{ height: calcHeight(), minHeight: '120px' }">
     <table class="t-sticky">
       <thead>
         <tr>
@@ -41,7 +50,6 @@ const props = defineProps({
 
 <style scoped>
 .t-sticky-wrap {
-  height: 500px;
   overflow-y: auto;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
@@ -59,9 +67,9 @@ const props = defineProps({
   border-bottom: 1px solid #eeeeee;
 }
 
-.t-sticky tr:last-child td {
+/* .t-sticky tr:last-child td {
   border-bottom: none;
-}
+} */
 
 .t-sticky tr:hover td {
   background: #f5f5f5;
