@@ -67,10 +67,6 @@ const calcHeight = (): string => {
   border-bottom: 1px solid #eeeeee;
 }
 
-/* .t-sticky tr:last-child td {
-  border-bottom: none;
-} */
-
 .t-sticky tr:hover td {
   background: #f5f5f5;
 }
