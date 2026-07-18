@@ -1,5 +1,9 @@
 <script setup lang="ts">
+import { ref, type PropType } from 'vue'
 import type { GridColumns } from './index.types'
+
+// Emits
+const emits = defineEmits(['selectedRows'])
 
 // Props
 const props = defineProps({
@@ -8,8 +12,12 @@ const props = defineProps({
     defualt: () => [],
   },
   dataItems: {
-    type: Array<any>,
-    defualt: () => [],
+    type: Array as PropType<Record<string, any>[]>,
+    default: () => [],
+  },
+  rowId: {
+    type: String,
+    default: 'id',
   },
   customHeight: {
     type: Number,
@@ -19,6 +27,7 @@ const props = defineProps({
 
 // Data
 const gridMargin = 16
+const currentSelection = ref<Record<string, any>[]>([])
 
 // Computed
 const calcHeight = (): string => {
@@ -27,9 +36,80 @@ const calcHeight = (): string => {
   }
   return '100%'
 }
+
+const selectedRowClass = (dataItem: Record<string, any>): string => {
+  const index = currentSelection.value.findIndex((x) => x[props.rowId] == dataItem[props.rowId])
+  if (index != -1) {
+    return 'selectedRow'
+  }
+  return ''
+}
+
+const computeTotalRows = (): string => {
+  if (props.dataItems.length > 0) {
+    return props.dataItems.length + ' total rows'
+  }
+  return ''
+}
+
+const computeSelection = (): string => {
+  if (currentSelection.value.length == 1) {
+    return '1 selected row'
+  }
+
+  if (currentSelection.value.length > 1) {
+    return currentSelection.value.length + ' selected rows'
+  }
+  return ''
+}
+
+// Methods
+const selectionChange = (event: PointerEvent, dataItem: Record<string, any>) => {
+  const index = currentSelection.value.findIndex((x) => x[props.rowId] == dataItem[props.rowId])
+  if (event.ctrlKey) {
+    if (index == -1) {
+      currentSelection.value.push(dataItem)
+    } else {
+      currentSelection.value = currentSelection.value.filter(
+        (x) => x[props.rowId] != dataItem[props.rowId],
+      )
+    }
+  }
+
+  if (event.shiftKey) {
+    if (index == -1) {
+      currentSelection.value.push(dataItem)
+    }
+    if (currentSelection.value.length == 2) {
+      const firstSelection = props.dataItems.findIndex(
+        (x) => x[props.rowId] == currentSelection.value[0]![props.rowId],
+      )
+      const secondSelection = props.dataItems.findIndex(
+        (x) => x[props.rowId] == currentSelection.value[1]![props.rowId],
+      )
+      const startIdx = Math.min(firstSelection, secondSelection)
+      const endIdx = Math.max(firstSelection, secondSelection)
+      const betweenDataItems = props.dataItems.slice(startIdx + 1, endIdx)
+      currentSelection.value = currentSelection.value.concat(betweenDataItems)
+    }
+  }
+
+  if (!event.ctrlKey && !event.shiftKey) {
+    const index = currentSelection.value.findIndex((x) => x[props.rowId] == dataItem[props.rowId])
+    if (index == -1) {
+      currentSelection.value = [dataItem]
+    }
+  }
+
+  emits('selectedRows', currentSelection.value)
+}
 </script>
 
 <template>
+  <div class="selectionRows">
+    <span>{{ computeSelection() }}</span>
+    <span>{{ computeTotalRows() }}</span>
+  </div>
   <div class="t-sticky-wrap" :style="{ height: calcHeight(), minHeight: '120px' }">
     <table class="t-sticky">
       <thead>
@@ -38,7 +118,12 @@ const calcHeight = (): string => {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="(row, rowIdx) in props.dataItems" :key="rowIdx">
+        <tr
+          v-for="(row, rowIdx) in props.dataItems"
+          :class="selectedRowClass(row)"
+          @click="selectionChange($event, row)"
+          :key="rowIdx"
+        >
           <td v-for="(col, colIdx) in props.columns" :key="colIdx">
             {{ row[col.field] }}
           </td>
@@ -71,6 +156,10 @@ const calcHeight = (): string => {
   background: #f5f5f5;
 }
 
+.t-sticky tbody td {
+  user-select: none;
+}
+
 .t-header {
   position: sticky;
   top: 0;
@@ -81,5 +170,19 @@ const calcHeight = (): string => {
   text-align: left;
   padding: 10px 14px;
   border-bottom: 1px solid #cccccc;
+}
+
+.selectionRows {
+  display: flex;
+  justify-content: space-between;
+  height: 30px;
+  font-size: 12.5px;
+  color: #46468a;
+  font-weight: 500;
+  padding-inline: 0.3rem;
+}
+
+.selectedRow {
+  background-color: aqua;
 }
 </style>
