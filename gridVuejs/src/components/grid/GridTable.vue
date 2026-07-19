@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, type PropType } from 'vue'
-import type { GridColumns } from './index.types'
+import { computed, ref, type PropType } from 'vue'
+import { SortDirection, type GridColumns, type SortState } from './index.types'
 
 // Emits
-const emits = defineEmits(['selectedRows'])
+const emits = defineEmits(['selectedRows', 'sortChange'])
 
 // Props
 const props = defineProps({
@@ -28,6 +28,7 @@ const props = defineProps({
 // Data
 const gridMargin = 16
 const currentSelection = ref<Record<string, any>[]>([])
+const sortState = ref<SortState[]>([])
 
 // Computed
 const calcHeight = (): string => {
@@ -62,6 +63,37 @@ const computeSelection = (): string => {
   }
   return ''
 }
+
+const getDirectionClass = (field: string): string => {
+  const col = sortState.value.find((x) => x.field == field)
+  if (col) {
+    if (col.direction == SortDirection.ascending) {
+      return 'fa-solid fa-arrow-up'
+    } else if (col.direction == SortDirection.descending) {
+      return 'fa-solid fa-arrow-down'
+    }
+  }
+  return ''
+}
+
+const sortedDataItems = computed(() => {
+  if (sortState.value.length === 0) {
+    return props.dataItems
+  }
+
+  return [...props.dataItems].sort((a, b) => {
+    for (const sort of sortState.value) {
+      const aVal = a[sort.field]
+      const bVal = b[sort.field]
+
+      const comparison = compareValues(a[sort.field], b[sort.field])
+      if (comparison !== 0) {
+        return sort.direction === SortDirection.ascending ? comparison : -comparison
+      }
+    }
+    return 0
+  })
+})
 
 // Methods
 const selectionChange = (event: PointerEvent, dataItem: Record<string, any>) => {
@@ -103,6 +135,47 @@ const selectionChange = (event: PointerEvent, dataItem: Record<string, any>) => 
 
   emits('selectedRows', currentSelection.value)
 }
+
+const sortList = (event: PointerEvent, field: string) => {
+  const col = sortState.value.find((x) => x.field == field)
+  if (col) {
+    if (col.direction === SortDirection.ascending) {
+      col.direction = SortDirection.descending
+    } else if (col.direction === SortDirection.descending) {
+      sortState.value = sortState.value.filter((x) => x.field != field)
+    }
+  } else {
+    const colSort: SortState = {
+      field: field,
+      direction: SortDirection.ascending,
+    }
+    sortState.value.push(colSort)
+  }
+  emits('sortChange', sortState.value)
+}
+
+// Helpers
+const compareValues = (aVal: any, bVal: any): number => {
+  // Dates (Date objects or ISO/parseable date strings)
+  if (aVal instanceof Date && bVal instanceof Date) {
+    return aVal.getTime() - bVal.getTime()
+  }
+
+  // Numbers
+  if (typeof aVal === 'number' && typeof bVal === 'number') {
+    return aVal - bVal
+  }
+
+  // Strings — locale-aware, case-insensitive alphabetical
+  if (typeof aVal === 'string' && typeof bVal === 'string') {
+    return aVal.localeCompare(bVal, undefined, { sensitivity: 'base' })
+  }
+
+  // Fallback
+  if (aVal < bVal) return -1
+  if (aVal > bVal) return 1
+  return 0
+}
 </script>
 
 <template>
@@ -114,12 +187,20 @@ const selectionChange = (event: PointerEvent, dataItem: Record<string, any>) => 
     <table class="t-sticky">
       <thead>
         <tr>
-          <th class="t-header" v-for="(col, idx) in props.columns" :key="idx">{{ col.title }}</th>
+          <th
+            class="t-header"
+            v-for="(col, idx) in props.columns"
+            :key="idx"
+            @click="sortList($event, col.field)"
+          >
+            <span>{{ col.title }}</span>
+            <span class="spaceInLeft" :class="getDirectionClass(col.field)"></span>
+          </th>
         </tr>
       </thead>
       <tbody>
         <tr
-          v-for="(row, rowIdx) in props.dataItems"
+          v-for="(row, rowIdx) in sortedDataItems"
           :class="selectedRowClass(row)"
           @click="selectionChange($event, row)"
           :key="rowIdx"
@@ -172,6 +253,10 @@ const selectionChange = (event: PointerEvent, dataItem: Record<string, any>) => 
   border-bottom: 1px solid #cccccc;
 }
 
+.t-header:hover {
+  cursor: pointer;
+}
+
 .selectionRows {
   display: flex;
   justify-content: space-between;
@@ -184,5 +269,9 @@ const selectionChange = (event: PointerEvent, dataItem: Record<string, any>) => 
 
 .selectedRow {
   background-color: aqua;
+}
+
+.spaceInLeft {
+  margin-left: 0.5em;
 }
 </style>
