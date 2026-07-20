@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, type PropType } from 'vue'
-import { SortDirection, type GridColumns, type SortState } from './index.types'
+import { SortDirection, type FilterState, type GridColumns, type SortState } from './index.types'
 
 // Emits
-const emits = defineEmits(['selectedRows', 'sortChange'])
+const emits = defineEmits(['selectedRows', 'sortChange', 'filterChange'])
 
 // Props
 const props = defineProps({
@@ -29,6 +29,7 @@ const props = defineProps({
 const gridMargin = 16
 const currentSelection = ref<Record<string, any>[]>([])
 const sortState = ref<SortState[]>([])
+const filterState = ref<FilterState[]>([])
 
 // Computed
 const calcHeight = (): string => {
@@ -76,16 +77,25 @@ const getDirectionClass = (field: string): string => {
   return ''
 }
 
-const sortedDataItems = computed(() => {
-  if (sortState.value.length === 0) {
-    return props.dataItems
-  }
+const getFilterValue = (field: string): string => {
+  return filterState.value.find((f) => f.field === field)?.value ?? ''
+}
 
-  return [...props.dataItems].sort((a, b) => {
+const filteredDataItems = computed(() => {
+  if (filterState.value.length === 0) return props.dataItems
+  return props.dataItems.filter((item) =>
+    filterState.value.every((filter) => {
+      const cellValue = item[filter.field]
+      if (cellValue == null) return false
+      return String(cellValue).toLowerCase().includes(filter.value.toLowerCase())
+    }),
+  )
+})
+
+const localDataItem = computed(() => {
+  if (sortState.value.length === 0) return filteredDataItems.value
+  return [...filteredDataItems.value].sort((a, b) => {
     for (const sort of sortState.value) {
-      const aVal = a[sort.field]
-      const bVal = b[sort.field]
-
       const comparison = compareValues(a[sort.field], b[sort.field])
       if (comparison !== 0) {
         return sort.direction === SortDirection.ascending ? comparison : -comparison
@@ -154,6 +164,20 @@ const sortList = (event: PointerEvent, field: string) => {
   emits('sortChange', sortState.value)
 }
 
+const setFilterValue = (field: string, value: string) => {
+  const existing = filterState.value.find((f) => f.field === field)
+  if (existing) {
+    if (value === '') {
+      filterState.value = filterState.value.filter((f) => f.field !== field)
+    } else {
+      existing.value = value
+    }
+  } else if (value !== '') {
+    filterState.value.push({ field, value })
+  }
+  emits('filterChange', filterState.value)
+}
+
 // Helpers
 const compareValues = (aVal: any, bVal: any): number => {
   // Dates (Date objects or ISO/parseable date strings)
@@ -197,10 +221,20 @@ const compareValues = (aVal: any, bVal: any): number => {
             <span class="spaceInLeft" :class="getDirectionClass(col.field)"></span>
           </th>
         </tr>
+        <tr class="t-filter-row">
+          <th v-for="(col, idx) in props.columns" :key="idx">
+            <input
+              class="t-filter-input"
+              type="text"
+              :value="getFilterValue(col.field)"
+              @input="setFilterValue(col.field, ($event.target as HTMLInputElement).value)"
+            />
+          </th>
+        </tr>
       </thead>
       <tbody>
         <tr
-          v-for="(row, rowIdx) in sortedDataItems"
+          v-for="(row, rowIdx) in localDataItem"
           :class="selectedRowClass(row)"
           @click="selectionChange($event, row)"
           :key="rowIdx"
@@ -250,7 +284,7 @@ const compareValues = (aVal: any, bVal: any): number => {
   font-weight: bold;
   text-align: left;
   padding: 10px 14px;
-  border-bottom: 1px solid #cccccc;
+  /* border-bottom: 1px solid #cccccc; */
 }
 
 .t-header:hover {
@@ -273,5 +307,28 @@ const compareValues = (aVal: any, bVal: any): number => {
 
 .spaceInLeft {
   margin-left: 0.5em;
+}
+
+.t-filter-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 4px;
+  font-size: 13px;
+  font-weight: normal;
+  color: #111111;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #dddddd;
+  border-radius: 0;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.t-filter-input:hover {
+  border-bottom-color: #bbbbbb;
+}
+
+.t-filter-input:focus {
+  border-bottom-color: #666666;
 }
 </style>

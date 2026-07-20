@@ -8,6 +8,11 @@ export interface SortState {
     direction: string
 }
 
+export interface FilterState {
+    field: string;
+    value: string
+}
+
 export enum SortDirection {
     ascending = "asc",
     descending = "desc",
