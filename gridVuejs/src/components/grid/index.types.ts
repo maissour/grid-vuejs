@@ -1,6 +1,7 @@
 export interface GridColumns {
     title: string;
     field: string;
+    filterable?: boolean;
 }
 
 export interface SortState {

@@ -23,6 +23,10 @@ const props = defineProps({
     type: Number,
     default: 0,
   },
+  filterable: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 // Data
@@ -224,13 +228,14 @@ const compareValues = (aVal: any, bVal: any): number => {
             <span class="spaceInLeft" :class="getDirectionClass(col.field)"></span>
           </th>
         </tr>
-        <tr class="t-filter-row">
+        <tr class="t-filter-row" v-if="props.filterable">
           <th v-for="(col, idx) in props.columns" :key="idx">
             <input
               class="t-filter-input"
               type="text"
               :value="getFilterValue(col.field)"
               @input="setFilterValue(col.field, ($event.target as HTMLInputElement).value)"
+              v-if="col.filterable == true"
             />
           </th>
         </tr>

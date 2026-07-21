@@ -7,6 +7,7 @@ const columns: GridColumns[] = [
   {
     title: 'name',
     field: 'name',
+    filterable: true,
   },
   {
     title: 'age',
@@ -15,6 +16,7 @@ const columns: GridColumns[] = [
   {
     title: 'occupation',
     field: 'occupation',
+    filterable: true,
   },
 ]
 
@@ -62,6 +64,7 @@ const selectedRows = (selectedData: any[]) => {}
       :dataItems="dataItems"
       :rowId="'id'"
       :customHeight="500"
+      :filterable="true"
       @selectedRows="selectedRows"
     />
   </main>
