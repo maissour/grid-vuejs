@@ -39,6 +39,11 @@ const calcHeight = (): string => {
   return '100%'
 }
 
+const capitalizeTitleCol = (colname: string): string => {
+  if (!colname) return colname
+  return colname.charAt(0).toUpperCase() + colname.slice(1)
+}
+
 const selectedRowClass = (dataItem: Record<string, any>): string => {
   const index = currentSelection.value.findIndex((x) => x[props.rowId] == dataItem[props.rowId])
   if (index != -1) {
@@ -118,11 +123,9 @@ const selectionChange = (event: PointerEvent, dataItem: Record<string, any>) => 
     }
   }
 
-  if (event.shiftKey) {
+  if (event.shiftKey && currentSelection.value.length == 1) {
     if (index == -1) {
       currentSelection.value.push(dataItem)
-    }
-    if (currentSelection.value.length == 2) {
       const firstSelection = props.dataItems.findIndex(
         (x) => x[props.rowId] == currentSelection.value[0]![props.rowId],
       )
@@ -217,7 +220,7 @@ const compareValues = (aVal: any, bVal: any): number => {
             :key="idx"
             @click="sortList($event, col.field)"
           >
-            <span>{{ col.title }}</span>
+            <span>{{ capitalizeTitleCol(col.title) }}</span>
             <span class="spaceInLeft" :class="getDirectionClass(col.field)"></span>
           </th>
         </tr>
@@ -262,29 +265,42 @@ const compareValues = (aVal: any, bVal: any): number => {
 }
 
 .t-sticky td {
-  padding: 10px 14px;
+  padding: 4px;
+  text-align: center;
   color: #111111;
   border-bottom: 1px solid #eeeeee;
 }
 
-.t-sticky tr:hover td {
-  background: #f5f5f5;
+.t-sticky tbody tr:hover td {
+  background: #d6eef8;
 }
 
 .t-sticky tbody td {
   user-select: none;
 }
 
+.t-sticky tbody tr:nth-child(even):not(.selectedRow) {
+  background-color: #eef0f8;
+}
+
+.t-sticky tbody tr:nth-child(odd):not(.selectedRow) {
+  background-color: #ffffff;
+}
+
 .t-header {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: #ffffff;
-  color: black;
+  background: #e3e5f1;
+  color: #1479c9;
   font-weight: bold;
-  text-align: left;
-  padding: 10px 14px;
-  /* border-bottom: 1px solid #cccccc; */
+  text-align: center;
+  padding: 4px;
+}
+
+.t-header span:first-child {
+  display: inline-block;
+  padding-bottom: 6px;
 }
 
 .t-header:hover {
@@ -294,19 +310,24 @@ const compareValues = (aVal: any, bVal: any): number => {
 .selectionRows {
   display: flex;
   justify-content: space-between;
-  height: 30px;
+  height: 20px;
   font-size: 12.5px;
   color: #46468a;
   font-weight: 500;
   padding-inline: 0.3rem;
+  background: #ffffff;
 }
 
 .selectedRow {
-  background-color: aqua;
+  background-color: #d6eef8 !important;
 }
 
 .spaceInLeft {
   margin-left: 0.5em;
+}
+
+.t-filter-row {
+  background: #e3e5f1;
 }
 
 .t-filter-input {
