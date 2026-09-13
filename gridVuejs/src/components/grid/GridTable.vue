@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, type PropType } from 'vue'
-import { SortDirection, type FilterState, type GridColumns, type SortState } from './index.types'
+import {
+  SortDirection,
+  type FilterState,
+  type GridColumns,
+  type GroupState,
+  type SortState,
+} from './index.types'
 
 // Emits
-const emits = defineEmits(['selectedRows', 'sortChange', 'filterChange'])
+const emits = defineEmits(['selectedRows', 'sortChange', 'filterChange', 'groupChange'])
 
 // Props
 const props = defineProps({
@@ -27,6 +33,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  groupable: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 // Data
@@ -34,6 +44,18 @@ const gridMargin = 16
 const currentSelection = ref<Record<string, any>[]>([])
 const sortState = ref<SortState[]>([])
 const filterState = ref<FilterState[]>([])
+const groupeState = ref<GroupState[]>([])
+const isDragging = ref(false)
+const isDragOver = ref(false)
+const isCollapsed = ref(false)
+const draggedColTitle = ref('')
+const dragX = ref(0)
+const dragY = ref(0)
+const transparentImg = new Image()
+const isGrouped = computed(() => groupeState.value.length > 0)
+const collapsedGroups = ref<Set<string>>(new Set())
+transparentImg.src =
+  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
 
 // Computed
 const calcHeight = (): string => {
@@ -78,40 +100,78 @@ const getDirectionClass = (field: string): string => {
   const col = sortState.value.find((x) => x.field == field)
   if (col) {
     if (col.direction == SortDirection.ascending) {
-      return 'fa-solid fa-arrow-up'
+      return 'fa-solid fa-chevron-up'
     } else if (col.direction == SortDirection.descending) {
-      return 'fa-solid fa-arrow-down'
+      return 'fa-solid fa-chevron-down'
     }
   }
   return ''
+}
+
+const getCollapseClassIcon = (collapsed: boolean): string => {
+  return collapsed ? 'fa-solid fa-chevron-right' : 'fa-solid fa-chevron-down'
+}
+
+const toggleCollapse = (groupKey: string) => {
+  if (collapsedGroups.value.has(groupKey)) {
+    collapsedGroups.value.delete(groupKey)
+  } else {
+    collapsedGroups.value.add(groupKey)
+  }
+  collapsedGroups.value = new Set(collapsedGroups.value)
+  console.log('collapsedGroups :', collapsedGroups.value)
+}
+
+const isGroupCollapsed = (groupKey: string): boolean => {
+  return collapsedGroups.value.has(groupKey)
 }
 
 const getFilterValue = (field: string): string => {
   return filterState.value.find((f) => f.field === field)?.value ?? ''
 }
 
-const filteredDataItems = computed(() => {
-  if (filterState.value.length === 0) return props.dataItems
-  return props.dataItems.filter((item) =>
-    filterState.value.every((filter) => {
-      const cellValue = item[filter.field]
-      if (cellValue == null) return false
-      return String(cellValue).toLowerCase().includes(filter.value.toLowerCase())
-    }),
+const groupData = (data: Record<string, any>[], fields: string[]) => {
+  return data.reduce(
+    (groups, item) => {
+      const key = fields.map((field) => `${field} : ${item[field]}`).join(' | ')
+      if (!groups[key]) groups[key] = []
+      groups[key].push(item)
+      return groups
+    },
+    {} as Record<string, any[]>,
   )
-})
+}
 
 const localDataItem = computed(() => {
-  if (sortState.value.length === 0) return filteredDataItems.value
-  return [...filteredDataItems.value].sort((a, b) => {
-    for (const sort of sortState.value) {
-      const comparison = compareValues(a[sort.field], b[sort.field])
-      if (comparison !== 0) {
-        return sort.direction === SortDirection.ascending ? comparison : -comparison
+  let data: Record<string, any>[] = props.dataItems
+  // Filter
+  if (filterState.value.length > 0) {
+    data = data.filter((item) =>
+      filterState.value.every((filter) => {
+        const cellValue = item[filter.field]
+        if (cellValue == null) return false
+        return String(cellValue).toLowerCase().includes(filter.value.toLowerCase())
+      }),
+    )
+  }
+  // Sort
+  if (sortState.value.length > 0) {
+    data = [...data].sort((a, b) => {
+      for (const sort of sortState.value) {
+        const comparison = compareValues(a[sort.field], b[sort.field])
+        if (comparison !== 0) {
+          return sort.direction === SortDirection.ascending ? comparison : -comparison
+        }
       }
-    }
-    return 0
-  })
+      return 0
+    })
+  }
+  // Group
+  if (groupeState.value.length > 0) {
+    const fields = groupeState.value.map((g) => g.field)
+    return groupData(data, fields)
+  }
+  return data
 })
 
 // Methods
@@ -185,24 +245,73 @@ const setFilterValue = (field: string, value: string) => {
   emits('filterChange', filterState.value)
 }
 
+const onHeaderDragStart = (event: DragEvent, col: GridColumns) => {
+  event.dataTransfer?.setData(
+    'application/json',
+    JSON.stringify({ field: col.field, title: col.title }),
+  )
+  event.dataTransfer!.effectAllowed = 'move'
+  event.dataTransfer?.setDragImage(transparentImg, 0, 0)
+
+  draggedColTitle.value = col.title
+  dragX.value = event.clientX + 12
+  dragY.value = event.clientY + 12
+  document.addEventListener('dragover', onDocumentDragOver)
+  isDragging.value = true
+}
+
+const onDocumentDragOver = (event: DragEvent) => {
+  event.preventDefault()
+  dragX.value = event.clientX + 12
+  dragY.value = event.clientY + 12
+}
+
+const onHeaderDragEnd = () => {
+  isDragging.value = false
+  isDragOver.value = false
+  document.removeEventListener('dragover', onDocumentDragOver)
+}
+
+const onGroupDragOver = () => {
+  isDragOver.value = true
+}
+
+const onGroupDragLeave = () => {
+  isDragOver.value = false
+}
+
+const onGroupDrop = (event: DragEvent) => {
+  isDragOver.value = false
+  isDragging.value = false
+  const data = event.dataTransfer?.getData('application/json')
+  if (!data) return
+
+  const dropped: GroupState = JSON.parse(data)
+  const alreadyGrouped = groupeState.value.some((g) => g.field === dropped.field)
+  if (!alreadyGrouped) {
+    groupeState.value.push(dropped)
+  }
+  emits('sortChange', groupeState.value)
+}
+
+const removeGroup = (field: string) => {
+  groupeState.value = groupeState.value.filter((g) => g.field !== field)
+}
+
 // Helpers
 const compareValues = (aVal: any, bVal: any): number => {
-  // Dates (Date objects or ISO/parseable date strings)
   if (aVal instanceof Date && bVal instanceof Date) {
     return aVal.getTime() - bVal.getTime()
   }
 
-  // Numbers
   if (typeof aVal === 'number' && typeof bVal === 'number') {
     return aVal - bVal
   }
 
-  // Strings — locale-aware, case-insensitive alphabetical
   if (typeof aVal === 'string' && typeof bVal === 'string') {
     return aVal.localeCompare(bVal, undefined, { sensitivity: 'base' })
   }
 
-  // Fallback
   if (aVal < bVal) return -1
   if (aVal > bVal) return 1
   return 0
@@ -210,11 +319,36 @@ const compareValues = (aVal: any, bVal: any): number => {
 </script>
 
 <template>
+  <div
+    v-if="isDragging"
+    class="t-drag-ghost"
+    :class="{ 't-drag-ghost-over-zone': isDragOver }"
+    :style="{ left: dragX + 'px', top: dragY + 'px' }"
+  >
+    <i :class="isDragOver ? 'fa-solid fa-circle-plus' : 'fa-regular fa-circle-xmark'"></i>
+    <span>{{ draggedColTitle }}</span>
+  </div>
   <div class="selectionRows">
     <span>{{ computeSelection() }}</span>
     <span>{{ computeTotalRows() }}</span>
   </div>
   <div class="t-sticky-wrap" :style="{ height: calcHeight(), minHeight: '120px' }">
+    <div
+      class="t-group-container"
+      v-if="groupable"
+      :class="{ 't-group-container-drag-over': isDragOver }"
+      @dragover.prevent="onGroupDragOver"
+      @dragleave="onGroupDragLeave"
+      @drop.prevent="onGroupDrop"
+    >
+      <div v-if="groupeState.length === 0" class="t-group-placeholder">
+        Drag a column here to group
+      </div>
+      <span v-for="(group, idx) in groupeState" :key="idx" class="t-group-chip">
+        {{ capitalizeTitleCol(group.title) }}
+        <button class="t-group-chip-remove" @click="removeGroup(group.field)">×</button>
+      </span>
+    </div>
     <table class="t-sticky">
       <thead>
         <tr>
@@ -222,6 +356,10 @@ const compareValues = (aVal: any, bVal: any): number => {
             class="t-header"
             v-for="(col, idx) in props.columns"
             :key="idx"
+            draggable="true"
+            @dragstart="onHeaderDragStart($event, col)"
+            @drag=""
+            @dragend="onHeaderDragEnd"
             @click="sortList($event, col.field)"
           >
             <span>{{ capitalizeTitleCol(col.title) }}</span>
@@ -241,120 +379,52 @@ const compareValues = (aVal: any, bVal: any): number => {
         </tr>
       </thead>
       <tbody>
-        <tr
-          v-for="(row, rowIdx) in localDataItem"
-          :class="selectedRowClass(row)"
-          @click="selectionChange($event, row)"
-          :key="rowIdx"
-        >
-          <td v-for="(col, colIdx) in props.columns" :key="colIdx">
-            {{ row[col.field] }}
-          </td>
-        </tr>
+        <!-- grouped mode -->
+        <template v-if="isGrouped">
+          <template v-for="(groupRows, groupKey) in localDataItem" :key="groupKey">
+            <tr class="group-row">
+              <td :colspan="props.columns?.length">
+                <span
+                  :class="getCollapseClassIcon(isGroupCollapsed(groupKey as string))"
+                  @click="toggleCollapse(groupKey as string)"
+                ></span>
+                <p class="group-label">{{ capitalizeTitleCol(groupKey as string) }}</p>
+              </td>
+            </tr>
+            <tr
+              v-for="(row, rowIdx) in groupRows"
+              :key="rowIdx"
+              :class="[
+                selectedRowClass(row),
+                isGroupCollapsed(groupKey as string) ? 'hideElement' : '',
+              ]"
+              @click="selectionChange($event, row)"
+            >
+              <td v-for="(col, colIdx) in props.columns" :key="colIdx">
+                {{ row[col.field] }}
+              </td>
+            </tr>
+          </template>
+        </template>
+
+        <!-- flat mode -->
+        <template v-else>
+          <tr
+            v-for="(row, rowIdx) in localDataItem"
+            :key="rowIdx"
+            :class="selectedRowClass(row)"
+            @click="selectionChange($event, row)"
+          >
+            <td v-for="(col, colIdx) in props.columns" :key="colIdx">
+              {{ row[col.field] }}
+            </td>
+          </tr>
+        </template>
       </tbody>
     </table>
   </div>
 </template>
 
 <style scoped>
-.t-sticky-wrap {
-  overflow-y: auto;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-}
-
-.t-sticky {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-.t-sticky td {
-  padding: 4px;
-  text-align: center;
-  color: #111111;
-  border-bottom: 1px solid #eeeeee;
-}
-
-.t-sticky tbody tr:hover td {
-  background: #d6eef8;
-}
-
-.t-sticky tbody td {
-  user-select: none;
-}
-
-.t-sticky tbody tr:nth-child(even):not(.selectedRow) {
-  background-color: #eef0f8;
-}
-
-.t-sticky tbody tr:nth-child(odd):not(.selectedRow) {
-  background-color: #ffffff;
-}
-
-.t-header {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: #e3e5f1;
-  color: #1479c9;
-  font-weight: bold;
-  text-align: center;
-  padding: 4px;
-}
-
-.t-header span:first-child {
-  display: inline-block;
-  padding-bottom: 6px;
-}
-
-.t-header:hover {
-  cursor: pointer;
-}
-
-.selectionRows {
-  display: flex;
-  justify-content: space-between;
-  height: 20px;
-  font-size: 12.5px;
-  color: #46468a;
-  font-weight: 500;
-  padding-inline: 0.3rem;
-  background: #ffffff;
-}
-
-.selectedRow {
-  background-color: #d6eef8 !important;
-}
-
-.spaceInLeft {
-  margin-left: 0.5em;
-}
-
-.t-filter-row {
-  background: #e3e5f1;
-}
-
-.t-filter-input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 6px 4px;
-  font-size: 13px;
-  font-weight: normal;
-  color: #111111;
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid #dddddd;
-  border-radius: 0;
-  outline: none;
-  transition: border-color 0.15s ease;
-}
-
-.t-filter-input:hover {
-  border-bottom-color: #bbbbbb;
-}
-
-.t-filter-input:focus {
-  border-bottom-color: #666666;
-}
+@import url('@/assets/style.css');
 </style>

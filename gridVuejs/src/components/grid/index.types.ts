@@ -14,6 +14,11 @@ export interface FilterState {
     value: string
 }
 
+export interface GroupState {
+  field: string
+  title: string
+}
+
 export enum SortDirection {
     ascending = "asc",
     descending = "desc",
