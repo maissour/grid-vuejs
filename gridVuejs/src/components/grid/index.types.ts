@@ -19,6 +19,11 @@ export interface GroupState {
   title: string
 }
 
+export interface PageState {
+    skip: number;
+    take: number;
+}
+
 export enum SortDirection {
     ascending = "asc",
     descending = "desc",

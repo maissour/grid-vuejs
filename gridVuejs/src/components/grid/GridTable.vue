@@ -5,11 +5,18 @@ import {
   type FilterState,
   type GridColumns,
   type GroupState,
+  type PageState,
   type SortState,
 } from './index.types'
 
 // Emits
-const emits = defineEmits(['selectedRows', 'sortChange', 'filterChange', 'groupChange'])
+const emits = defineEmits([
+  'selectedRows',
+  'sortChange',
+  'filterChange',
+  'groupChange',
+  'pageChange',
+])
 
 // Props
 const props = defineProps({
@@ -41,16 +48,29 @@ const props = defineProps({
 
 // Data
 const gridMargin = 16
+const maxVisiblePageNumber = 3
 const currentSelection = ref<Record<string, any>[]>([])
 const sortState = ref<SortState[]>([])
 const filterState = ref<FilterState[]>([])
 const groupeState = ref<GroupState[]>([])
+const pageSizes = [
+  { text: 10, value: 10 },
+  { text: 20, value: 20 },
+  { text: 50, value: 50 },
+  { text: 100, value: 100 },
+]
 const isDragging = ref(false)
 const isDragOver = ref(false)
-const isCollapsed = ref(false)
+const disablePrevPage = ref(false)
+const disableNextPage = ref(false)
+const disableFirstPage = ref(false)
+const disableLastPage = ref(false)
 const draggedColTitle = ref('')
 const dragX = ref(0)
 const dragY = ref(0)
+const pageSize = ref(pageSizes[0]?.value as number)
+const selectedPage = ref(1)
+const pageState = ref<PageState>({ skip: 0, take: pageSize.value })
 const transparentImg = new Image()
 const isGrouped = computed(() => groupeState.value.length > 0)
 const collapsedGroups = ref<Set<string>>(new Set())
@@ -119,7 +139,6 @@ const toggleCollapse = (groupKey: string) => {
     collapsedGroups.value.add(groupKey)
   }
   collapsedGroups.value = new Set(collapsedGroups.value)
-  console.log('collapsedGroups :', collapsedGroups.value)
 }
 
 const isGroupCollapsed = (groupKey: string): boolean => {
@@ -141,6 +160,8 @@ const groupData = (data: Record<string, any>[], fields: string[]) => {
     {} as Record<string, any[]>,
   )
 }
+
+const pageCount = computed(() => Math.ceil(props.dataItems.length / pageSize.value))
 
 const localDataItem = computed(() => {
   let data: Record<string, any>[] = props.dataItems
@@ -169,9 +190,23 @@ const localDataItem = computed(() => {
   // Group
   if (groupeState.value.length > 0) {
     const fields = groupeState.value.map((g) => g.field)
-    return groupData(data, fields)
+    const group = groupData(data, fields)
+    const result = Object.values(group).flat().slice(pageState.value.skip, pageState.value.take)
+    return groupData(result, fields)
   }
+
+  data = data.slice(pageState.value.skip, pageState.value.take)
+
   return data
+})
+
+const visiblePages = computed(() => {
+  let rangeArray = Array.from({ length: pageCount.value }, (_, i) => i + 1)
+  let pages = []
+  const start = Math.floor((selectedPage.value - 1) / maxVisiblePageNumber) * maxVisiblePageNumber
+  const end = start + maxVisiblePageNumber
+  pages = rangeArray.slice(start, end)
+  return pages
 })
 
 // Methods
@@ -298,6 +333,68 @@ const removeGroup = (field: string) => {
   groupeState.value = groupeState.value.filter((g) => g.field !== field)
 }
 
+const selectPage = (pageNumber: number) => {
+  selectedPage.value = pageNumber
+  pageState.value = {
+    skip: pageSize.value * (pageNumber - 1),
+    take: pageSize.value * pageNumber,
+  }
+
+  emits('pageChange', { pageState: pageState.value, pageNumber })
+}
+
+const nextPage = () => {
+  const pageNumber = selectedPage.value + 1
+
+  if (pageNumber > pageCount.value) {
+    disableNextPage.value = true
+    disableLastPage.value = true
+    return
+  }
+  selectPage(pageNumber)
+  disablePrevPage.value = false
+  disableFirstPage.value = false
+}
+
+const previousPage = () => {
+  const pageNumber = selectedPage.value - 1
+  if (pageNumber <= 0) {
+    disablePrevPage.value = true
+    return
+  }
+  selectPage(pageNumber)
+  disableNextPage.value = false
+  disableLastPage.value = false
+}
+
+const lastPage = () => {
+  if (disableLastPage.value) {
+    return
+  }
+  selectPage(pageCount.value)
+  disableNextPage.value = true
+  disableLastPage.value = true
+  disablePrevPage.value = false
+  disableFirstPage.value = false
+}
+
+const firstPage = () => {
+  if (disableFirstPage.value) {
+    return
+  }
+  selectPage(1)
+  disablePrevPage.value = true
+  disableFirstPage.value = true
+  disableNextPage.value = false
+  disableLastPage.value = false
+}
+
+const onPageChange = (event: Event) => {
+  const value = (event.target as HTMLInputElement).value
+  pageSize.value = Number(value)
+  selectPage(1)
+}
+
 // Helpers
 const compareValues = (aVal: any, bVal: any): number => {
   if (aVal instanceof Date && bVal instanceof Date) {
@@ -332,23 +429,23 @@ const compareValues = (aVal: any, bVal: any): number => {
     <span>{{ computeSelection() }}</span>
     <span>{{ computeTotalRows() }}</span>
   </div>
-  <div class="t-sticky-wrap" :style="{ height: calcHeight(), minHeight: '120px' }">
-    <div
-      class="t-group-container"
-      v-if="groupable"
-      :class="{ 't-group-container-drag-over': isDragOver }"
-      @dragover.prevent="onGroupDragOver"
-      @dragleave="onGroupDragLeave"
-      @drop.prevent="onGroupDrop"
-    >
-      <div v-if="groupeState.length === 0" class="t-group-placeholder">
-        Drag a column here to group
-      </div>
-      <span v-for="(group, idx) in groupeState" :key="idx" class="t-group-chip">
-        {{ capitalizeTitleCol(group.title) }}
-        <button class="t-group-chip-remove" @click="removeGroup(group.field)">×</button>
-      </span>
+  <div
+    class="t-group-container"
+    v-if="groupable"
+    :class="{ 't-group-container-drag-over': isDragOver }"
+    @dragover.prevent="onGroupDragOver"
+    @dragleave="onGroupDragLeave"
+    @drop.prevent="onGroupDrop"
+  >
+    <div v-if="groupeState.length === 0" class="t-group-placeholder">
+      Drag a column here to group
     </div>
+    <span v-for="(group, idx) in groupeState" :key="idx" class="t-group-chip">
+      {{ capitalizeTitleCol(group.title) }}
+      <button class="t-group-chip-remove" @click="removeGroup(group.field)">×</button>
+    </span>
+  </div>
+  <div class="t-sticky-wrap" :style="{ height: calcHeight(), minHeight: '120px' }">
     <table class="t-sticky">
       <thead>
         <tr>
@@ -422,6 +519,57 @@ const compareValues = (aVal: any, bVal: any): number => {
         </template>
       </tbody>
     </table>
+  </div>
+  <div class="t-footer-container">
+    <div class="t-footer-pagination">
+      <span
+        class="fa-solid fa-angles-left"
+        @click="firstPage"
+        :class="disableFirstPage || selectedPage == 1 ? 't-disable-change-page' : 't-change-page'"
+      ></span>
+      <span
+        class="fa-solid fa-angle-left"
+        @click="previousPage"
+        :class="disablePrevPage || selectedPage == 1 ? 't-disable-change-page' : 't-change-page'"
+      ></span>
+      <div class="t-page-number">
+        <div
+          class="t-page-number-item"
+          :class="selectedPage == n ? 't-page-number-item-selected' : ''"
+          v-for="n in visiblePages"
+          :key="n"
+          @click="selectPage(n)"
+        >
+          {{ n }}
+        </div>
+      </div>
+      <span
+        class="fa-solid fa-angle-right"
+        @click="nextPage"
+        :class="
+          disableNextPage || selectedPage == pageCount ? 't-disable-change-page' : 't-change-page'
+        "
+      ></span>
+      <span
+        class="fa-solid fa-angles-right"
+        @click="lastPage"
+        :class="
+          disableLastPage || selectedPage == pageCount ? 't-disable-change-page' : 't-change-page'
+        "
+      ></span>
+    </div>
+    <div class="t-page-size-container">
+      <select
+        class="t-page-size"
+        name="pageSize"
+        id="pageSize"
+        @change="onPageChange"
+        :value="pageSize"
+      >
+        <option v-for="size in pageSizes" :value="size.value">{{ size.text }}</option>
+      </select>
+      <span>items per page</span>
+    </div>
   </div>
 </template>
 
