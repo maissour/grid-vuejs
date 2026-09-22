@@ -44,6 +44,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  clientSort: {
+    type: Boolean,
+    default: true,
+  },
 })
 
 // Data
@@ -166,7 +170,7 @@ const pageCount = computed(() => Math.ceil(props.dataItems.length / pageSize.val
 const localDataItem = computed(() => {
   let data: Record<string, any>[] = props.dataItems
   // Filter
-  if (filterState.value.length > 0) {
+  if (filterState.value.length > 0 && props.filterable) {
     data = data.filter((item) =>
       filterState.value.every((filter) => {
         const cellValue = item[filter.field]
@@ -176,7 +180,7 @@ const localDataItem = computed(() => {
     )
   }
   // Sort
-  if (sortState.value.length > 0) {
+  if (sortState.value.length > 0 && props.clientSort) {
     data = [...data].sort((a, b) => {
       for (const sort of sortState.value) {
         const comparison = compareValues(a[sort.field], b[sort.field])
@@ -188,7 +192,7 @@ const localDataItem = computed(() => {
     })
   }
   // Group
-  if (groupeState.value.length > 0) {
+  if (groupeState.value.length > 0 && props.groupable) {
     const fields = groupeState.value.map((g) => g.field)
     const group = groupData(data, fields)
     const result = Object.values(group).flat().slice(pageState.value.skip, pageState.value.take)
