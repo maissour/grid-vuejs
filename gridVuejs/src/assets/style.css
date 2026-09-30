@@ -3,14 +3,20 @@
 }
 
 .t-sticky-wrap {
-  overflow-y: auto;
+  overflow: auto;             
   border: 1px solid #e0e0e0;
 }
 
 .t-sticky {
-  width: 100%;
+  min-width: 100%;            
+  width: max-content;          
   border-collapse: collapse;
   font-size: 14px;
+}
+
+.t-sticky th,
+.t-sticky td {
+  white-space: nowrap;         
 }
 
 .t-sticky td {
@@ -48,7 +54,6 @@
 }
 
 .t-header span:first-child {
-  display: inline-block;
   padding-bottom: 6px;
 }
 
