@@ -2,6 +2,8 @@ export interface GridColumns {
     title: string;
     field: string;
     filterable?: boolean;
+    format?: string;
+    filterCell?: ((h: any, defaultRendering: any | null, props: GridFilterCellProps, listeners: any) => any) | string | any;
 }
 
 export interface SortState {
@@ -22,6 +24,12 @@ export interface GroupState {
 export interface PageState {
     skip: number;
     take: number;
+}
+
+export interface GridFilterCellProps {
+    field: string;
+    value: string;
+    filterType: string;
 }
 
 export enum SortDirection {

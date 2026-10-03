@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { Component } from 'vue'
 import { computed, ref, type PropType } from 'vue'
 import {
   SortDirection,
@@ -8,6 +9,8 @@ import {
   type PageState,
   type SortState,
 } from './index.types'
+import { formatDateDynamic, ISO_DATE } from '.'
+import dateFilterTemplate from './templates/dateFilterTemplate.vue'
 
 // Emits
 const emits = defineEmits([
@@ -92,6 +95,20 @@ const calcHeight = (): string => {
 const capitalizeTitleCol = (colname: string): string => {
   if (!colname) return colname
   return colname.charAt(0).toUpperCase() + colname.slice(1)
+}
+
+const displayCell = (col: GridColumns, row: any): string => {
+  const value = row[col.field]
+
+  if (!col.format) return value ?? ''
+
+  const isDateLike = value instanceof Date || (typeof value === 'string' && ISO_DATE.test(value))
+  if (!isDateLike) return value ?? ''
+
+  const date = new Date(value)
+  if (isNaN(date.getTime())) return String(value)
+
+  return formatDateDynamic(date, col.format)
 }
 
 const selectedRowClass = (dataItem: Record<string, any>): string => {
@@ -214,6 +231,26 @@ const visiblePages = computed(() => {
 })
 
 // Methods
+const filterCellRegistry: Record<string, Component> = {
+  dateFilter: dateFilterTemplate,
+}
+
+const resolveFilterCell = (col: GridColumns): Component | null => {
+  const fc = col.filterCell
+  if (!fc) return null
+  if (typeof fc === 'string') return filterCellRegistry[fc] ?? null
+  return fc
+}
+
+const getFilterSlotProps = (col: GridColumns) => ({
+  props: {
+    field: col.field,
+    format: col.format,
+    value: getFilterValue(col.field),
+    onChange: (value: any) => setFilterValue(col.field, value),
+  },
+})
+
 const selectionChange = (event: PointerEvent, dataItem: Record<string, any>) => {
   const index = currentSelection.value.findIndex((x) => x[props.rowId] == dataItem[props.rowId])
   if (event.ctrlKey) {
@@ -469,13 +506,21 @@ const compareValues = (aVal: any, bVal: any): number => {
         </tr>
         <tr class="t-filter-row" v-if="props.filterable">
           <th v-for="(col, idx) in props.columns" :key="idx">
-            <input
-              class="t-filter-input"
-              type="text"
-              :value="getFilterValue(col.field)"
-              @input="setFilterValue(col.field, ($event.target as HTMLInputElement).value)"
-              v-if="col.filterable == true"
-            />
+            <template v-if="col.filterable">
+              <component
+                v-if="resolveFilterCell(col)"
+                :is="resolveFilterCell(col)"
+                :templateProps="getFilterSlotProps(col).props"
+              />
+
+              <input
+                v-else
+                class="t-filter-input"
+                type="text"
+                :value="getFilterValue(col.field)"
+                @input="setFilterValue(col.field, ($event.target as HTMLInputElement).value)"
+              />
+            </template>
           </th>
         </tr>
       </thead>
@@ -502,7 +547,7 @@ const compareValues = (aVal: any, bVal: any): number => {
               @click="selectionChange($event, row)"
             >
               <td v-for="(col, colIdx) in props.columns" :key="colIdx">
-                {{ row[col.field] }}
+                {{ displayCell(col, row) }}
               </td>
             </tr>
           </template>
@@ -517,7 +562,7 @@ const compareValues = (aVal: any, bVal: any): number => {
             @click="selectionChange($event, row)"
           >
             <td v-for="(col, colIdx) in props.columns" :key="colIdx">
-              {{ row[col.field] }}
+              {{ displayCell(col, row) }}
             </td>
           </tr>
         </template>
