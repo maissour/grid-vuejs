@@ -928,5 +928,20 @@ export const dataItems = [
     createdBy: 'manager',
     modifiedAt: '2025-06-17T10:25:00',
     modifiedBy: 'admin'
-  }
+  },
+  {
+    id: 63,
+    name: 'Brian Smith',
+    age: 28,
+    occupation: 'junior Developer',
+    city: 'Cluj-Napoca',
+    country: 'Romania',
+    postalCode: '400001',
+    address: '25 Strada Memorandumului',
+    phoneNumber: '+40 264 555 0162',
+    createdAt: '2025-06-03T11:40:00',
+    createdBy: 'manager',
+    modifiedAt: '2025-06-17T10:25:00',
+    modifiedBy: 'admin'
+  },
 ];

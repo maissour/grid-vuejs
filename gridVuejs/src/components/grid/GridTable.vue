@@ -3,14 +3,20 @@ import type { Component } from 'vue'
 import { computed, ref, type PropType } from 'vue'
 import {
   SortDirection,
+  type DisplayItem,
   type FilterState,
   type GridColumns,
+  type GroupItem,
   type GroupState,
+  type IdTextDto,
   type PageState,
+  type RowItem,
   type SortState,
 } from './index.types'
 import { formatDateDynamic, ISO_DATE } from '.'
 import dateFilterTemplate from './templates/dateFilterTemplate.vue'
+import dropDownlistTemplate from './templates/dropDownlistTemplate.vue'
+import textFilterTemplate from './templates/textFilterTemplate.vue'
 
 // Emits
 const emits = defineEmits([
@@ -47,13 +53,21 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  clientSort: {
+  isClientSort: {
+    type: Boolean,
+    default: true,
+  },
+  isClientFilter: {
     type: Boolean,
     default: true,
   },
 })
 
 // Data
+const dateFilterTemplateSlot = 'dateFilter'
+const dropdownListFilterTemplateSlot = 'dropDownlistFilter'
+const textFilterTemplateSlot = 'textFilter'
+const defaultSelection = 'All'
 const gridMargin = 16
 const maxVisiblePageNumber = 3
 const currentSelection = ref<Record<string, any>[]>([])
@@ -119,13 +133,6 @@ const selectedRowClass = (dataItem: Record<string, any>): string => {
   return ''
 }
 
-const computeTotalRows = (): string => {
-  if (props.dataItems.length > 0) {
-    return props.dataItems.length + ' total rows'
-  }
-  return ''
-}
-
 const computeSelection = (): string => {
   if (currentSelection.value.length == 1) {
     return '1 selected row'
@@ -170,24 +177,43 @@ const getFilterValue = (field: string): string => {
   return filterState.value.find((f) => f.field === field)?.value ?? ''
 }
 
-const groupData = (data: Record<string, any>[], fields: string[]) => {
-  return data.reduce(
-    (groups, item) => {
-      const key = fields.map((field) => `${field} : ${item[field]}`).join(' | ')
-      if (!groups[key]) groups[key] = []
-      groups[key].push(item)
-      return groups
-    },
-    {} as Record<string, any[]>,
-  )
-}
+const groupData = (
+  data: Record<string, any>[],
+  fields: string[],
+  level = 0,
+  ancestors: string[] = [],
+): DisplayItem[] => {
+  if (level >= fields.length) {
+    return data.map((row) => ({ type: 'row', row, ancestors }))
+  }
 
-const pageCount = computed(() => Math.ceil(props.dataItems.length / pageSize.value))
+  const field = fields[level]
+
+  const groups = new Map<any, Record<string, any>[]>()
+  data.forEach((item) => {
+    const value = item[field as string]
+    if (!groups.has(value)) groups.set(value, [])
+    groups.get(value)!.push(item)
+  })
+
+  const result: DisplayItem[] = []
+  groups.forEach((items, value) => {
+    const label = `${field} : ${value}`
+    const parentKey = ancestors[ancestors.length - 1]
+    const key = parentKey ? `${parentKey} | ${label}` : label
+
+    result.push({ type: 'group', key, label, level, ancestors })
+    result.push(...groupData(items, fields, level + 1, [...ancestors, key]))
+  })
+
+  return result
+}
 
 const localDataItem = computed(() => {
   let data: Record<string, any>[] = props.dataItems
+
   // Filter
-  if (filterState.value.length > 0 && props.filterable) {
+  if (filterState.value.length > 0 && props.filterable && props.isClientFilter) {
     data = data.filter((item) =>
       filterState.value.every((filter) => {
         const cellValue = item[filter.field]
@@ -196,8 +222,9 @@ const localDataItem = computed(() => {
       }),
     )
   }
+
   // Sort
-  if (sortState.value.length > 0 && props.clientSort) {
+  if (sortState.value.length > 0 && props.isClientSort) {
     data = [...data].sort((a, b) => {
       for (const sort of sortState.value) {
         const comparison = compareValues(a[sort.field], b[sort.field])
@@ -208,17 +235,46 @@ const localDataItem = computed(() => {
       return 0
     })
   }
+
   // Group
   if (groupeState.value.length > 0 && props.groupable) {
     const fields = groupeState.value.map((g) => g.field)
-    const group = groupData(data, fields)
-    const result = Object.values(group).flat().slice(pageState.value.skip, pageState.value.take)
-    return groupData(result, fields)
+
+    const ordered = groupData(data, fields)
+      .filter((i): i is RowItem => i.type === 'row')
+      .map((i) => i.row)
+
+    const pageRows = ordered.slice(pageState.value.skip, pageState.value.take)
+    const result = groupData(pageRows, fields)
+    return result
   }
 
   data = data.slice(pageState.value.skip, pageState.value.take)
 
   return data
+})
+
+const groupedItems = computed(() => localDataItem.value as DisplayItem[])
+
+const isGroupItem = (item: DisplayItem): item is GroupItem => item.type === 'group'
+
+const computeTotalRows = (): string => {
+  if (filterState.value.length > 0 && props.filterable && props.isClientFilter) {
+    const rowsCount = localDataItem.value.filter(
+      (item: Record<string, any>) => item.type !== 'group',
+    ).length
+    return rowsCount + ' total rows'
+  } else {
+    return props.dataItems.length + ' total rows'
+  }
+}
+
+const pageCount = computed(() => {
+  if (filterState.value.length > 0 && props.filterable && props.isClientFilter) {
+    return Math.ceil(localDataItem.value.length / pageSize.value)
+  } else {
+    return Math.ceil(props.dataItems.length / pageSize.value)
+  }
 })
 
 const visiblePages = computed(() => {
@@ -231,23 +287,52 @@ const visiblePages = computed(() => {
 })
 
 // Methods
-const filterCellRegistry: Record<string, Component> = {
-  dateFilter: dateFilterTemplate,
+const baseProps = (col: GridColumns) => ({
+  field: col.field,
+  value: getFilterValue(col.field),
+})
+
+const getDateFilterProps = (col: GridColumns) => ({
+  templateProps: {
+    ...baseProps(col),
+    format: col.format as string,
+    onChange: (v: any) => setFilterValue(col.field, v),
+  },
+})
+
+const dropdownListItems = (col: GridColumns): IdTextDto[] => {
+  if (props.dataItems.length === 0) {
+    return []
+  }
+
+  const uniqueValues = new Set(
+    props.dataItems
+      .map((item: any) => item[col.field])
+      .filter((v: any) => v !== null && v !== undefined && v !== ''),
+  )
+  const all: IdTextDto = { id: 0, text: defaultSelection }
+  let list = Array.from(uniqueValues)
+    .sort()
+    .map((value: any, idx: number) => ({
+      id: idx + 1,
+      text: String(value),
+    }))
+  list.unshift(all)
+  return list
 }
 
-const resolveFilterCell = (col: GridColumns): Component | null => {
-  const fc = col.filterCell
-  if (!fc) return null
-  if (typeof fc === 'string') return filterCellRegistry[fc] ?? null
-  return fc
-}
+const getDropdownFilterProps = (col: GridColumns) => ({
+  templateProps: {
+    ...baseProps(col),
+    onChange: (v: any) => setFilterValue(col.field, v),
+    dataItemList: dropdownListItems(col),
+  },
+})
 
-const getFilterSlotProps = (col: GridColumns) => ({
-  props: {
-    field: col.field,
-    format: col.format,
-    value: getFilterValue(col.field),
-    onChange: (value: any) => setFilterValue(col.field, value),
+const getTextFilterProps = (col: GridColumns) => ({
+  templateProps: {
+    ...baseProps(col),
+    onChange: (v: any) => setFilterValue(col.field, v),
   },
 })
 
@@ -310,7 +395,7 @@ const sortList = (event: PointerEvent, field: string) => {
 const setFilterValue = (field: string, value: string) => {
   const existing = filterState.value.find((f) => f.field === field)
   if (existing) {
-    if (value === '') {
+    if (value === '' || value == defaultSelection) {
       filterState.value = filterState.value.filter((f) => f.field !== field)
     } else {
       existing.value = value
@@ -367,7 +452,7 @@ const onGroupDrop = (event: DragEvent) => {
   if (!alreadyGrouped) {
     groupeState.value.push(dropped)
   }
-  emits('sortChange', groupeState.value)
+  emits('groupChange', groupeState.value)
 }
 
 const removeGroup = (field: string) => {
@@ -507,18 +592,19 @@ const compareValues = (aVal: any, bVal: any): number => {
         <tr class="t-filter-row" v-if="props.filterable">
           <th v-for="(col, idx) in props.columns" :key="idx">
             <template v-if="col.filterable">
-              <component
-                v-if="resolveFilterCell(col)"
-                :is="resolveFilterCell(col)"
-                :templateProps="getFilterSlotProps(col).props"
+              <dateFilterTemplate
+                v-if="col.filterCell == dateFilterTemplateSlot"
+                :templateProps="getDateFilterProps(col).templateProps"
               />
 
-              <input
-                v-else
-                class="t-filter-input"
-                type="text"
-                :value="getFilterValue(col.field)"
-                @input="setFilterValue(col.field, ($event.target as HTMLInputElement).value)"
+              <dropDownlistTemplate
+                v-if="col.filterCell == dropdownListFilterTemplateSlot"
+                :templateProps="getDropdownFilterProps(col).templateProps"
+              />
+
+              <textFilterTemplate
+                v-if="col.filterCell == textFilterTemplateSlot || col.filterCell == undefined"
+                :templateProps="getTextFilterProps(col).templateProps"
               />
             </template>
           </th>
@@ -527,29 +613,32 @@ const compareValues = (aVal: any, bVal: any): number => {
       <tbody>
         <!-- grouped mode -->
         <template v-if="isGrouped">
-          <template v-for="(groupRows, groupKey) in localDataItem" :key="groupKey">
-            <tr class="group-row">
-              <td :colspan="props.columns?.length">
-                <span
-                  :class="getCollapseClassIcon(isGroupCollapsed(groupKey as string))"
-                  @click="toggleCollapse(groupKey as string)"
-                ></span>
-                <p class="group-label">{{ capitalizeTitleCol(groupKey as string) }}</p>
-              </td>
-            </tr>
-            <tr
-              v-for="(row, rowIdx) in groupRows"
-              :key="rowIdx"
-              :class="[
-                selectedRowClass(row),
-                isGroupCollapsed(groupKey as string) ? 'hideElement' : '',
-              ]"
-              @click="selectionChange($event, row)"
-            >
-              <td v-for="(col, colIdx) in props.columns" :key="colIdx">
-                {{ displayCell(col, row) }}
-              </td>
-            </tr>
+          <template v-for="(item, idx) in groupedItems" :key="idx">
+            <template v-if="!item.ancestors.some((k) => isGroupCollapsed(k))">
+              <!-- group row -->
+              <tr v-if="isGroupItem(item)" class="group-row">
+                <td :colspan="props.columns?.length">
+                  <div class="group-row-label" :style="{ paddingLeft: item.level * 20 + 'px' }">
+                    <span
+                      :class="getCollapseClassIcon(isGroupCollapsed(item.key))"
+                      @click="toggleCollapse(item.key)"
+                    ></span>
+                    <p class="group-label">{{ capitalizeTitleCol(item.label) }}</p>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- data row -->
+              <tr
+                v-else
+                :class="selectedRowClass(item.row)"
+                @click="selectionChange($event, item.row)"
+              >
+                <td v-for="(col, colIdx) in props.columns" :key="colIdx">
+                  {{ displayCell(col, item.row) }}
+                </td>
+              </tr>
+            </template>
           </template>
         </template>
 

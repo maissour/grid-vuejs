@@ -6,6 +6,11 @@ import { dataItems } from './data'
 // Data
 const columns: GridColumns[] = [
   {
+    title: 'id',
+    field: 'id',
+    filterable: false,
+  },
+  {
     title: 'name',
     field: 'name',
     filterable: true,
@@ -14,6 +19,7 @@ const columns: GridColumns[] = [
     title: 'age',
     field: 'age',
     filterable: true,
+    filterCell: 'dropDownlistFilter',
   },
   {
     title: 'occupation',
