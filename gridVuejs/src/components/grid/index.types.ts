@@ -1,6 +1,7 @@
 export interface GridColumns {
     title: string;
     field: string;
+    hidden?: boolean;
     filterable?: boolean;
     format?: string;
     filterCell?: ((h: any, defaultRendering: any | null, props: GridFilterCellProps, listeners: any) => any) | string | any;

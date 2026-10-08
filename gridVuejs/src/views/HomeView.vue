@@ -8,6 +8,7 @@ const columns: GridColumns[] = [
   {
     title: 'id',
     field: 'id',
+    hidden: true,
     filterable: false,
   },
   {

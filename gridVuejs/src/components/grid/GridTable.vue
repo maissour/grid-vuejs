@@ -577,7 +577,7 @@ const compareValues = (aVal: any, bVal: any): number => {
         <tr>
           <th
             class="t-header"
-            v-for="(col, idx) in props.columns"
+            v-for="(col, idx) in props.columns?.filter((x) => !x.hidden)"
             :key="idx"
             draggable="true"
             @dragstart="onHeaderDragStart($event, col)"
@@ -634,7 +634,7 @@ const compareValues = (aVal: any, bVal: any): number => {
                 :class="selectedRowClass(item.row)"
                 @click="selectionChange($event, item.row)"
               >
-                <td v-for="(col, colIdx) in props.columns" :key="colIdx">
+                <td v-for="(col, colIdx) in props.columns?.filter((x) => !x.hidden)" :key="colIdx">
                   {{ displayCell(col, item.row) }}
                 </td>
               </tr>
@@ -650,7 +650,7 @@ const compareValues = (aVal: any, bVal: any): number => {
             :class="selectedRowClass(row)"
             @click="selectionChange($event, row)"
           >
-            <td v-for="(col, colIdx) in props.columns" :key="colIdx">
+            <td v-for="(col, colIdx) in props.columns?.filter((x) => !x.hidden)" :key="colIdx">
               {{ displayCell(col, row) }}
             </td>
           </tr>
