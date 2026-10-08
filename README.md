@@ -12,10 +12,10 @@
 
 ## Features
 
-- **Blazing fast** — virtual scrolling handles 100k+ rows without breaking a sweat
-- **Fully themeable** — CSS variables and slots for total visual control
-- **Smart sorting & filtering** — built-in, multi-column, and fully overridable
-- **Responsive** — adapts gracefully from desktop to mobile
-- **Composable API** — powered by the Composition API
-- **Framework agnostic styling** — plain CSS
+- **Blazing fast** : virtual scrolling handles 100k+ rows without breaking a sweat
+- **Fully themeable** : CSS variables and slots for total visual control
+- **Smart sorting & filtering** : built-in, multi-column, and fully overridable
+- **Responsive** : adapts gracefully from desktop to mobile
+- **Composable API** : powered by the Composition API
+- **Framework agnostic styling** : plain CSS
 ---
