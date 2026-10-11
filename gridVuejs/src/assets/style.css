@@ -57,8 +57,33 @@
   padding-bottom: 6px;
 }
 
-.t-header:hover {
+.t-header .t-title:hover {
   cursor: pointer;
+}
+
+.t-th-dots{
+  margin-left: .5rem;
+  cursor: pointer;
+}
+
+.t-hidden-columns{
+  position: absolute;
+  z-index: 10;
+  height: 300px;
+  background: white;
+  padding: 3px;
+  width: max-content;
+  overflow-y: auto;
+  margin-top: .5rem;
+}
+
+.t-hidden-columns-item{
+  display: flex;
+  gap: .6rem;
+}
+
+.t-hidden-columns-item-title{
+  color: black !important;
 }
 
 .selectionRows {

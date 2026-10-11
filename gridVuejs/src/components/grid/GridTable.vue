@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import type { Component } from 'vue'
-import { computed, ref, type PropType } from 'vue'
+import { computed, ref, type PropType, onMounted, onBeforeUnmount } from 'vue'
 import {
   SortDirection,
   type DisplayItem,
@@ -71,6 +70,7 @@ const defaultSelection = 'All'
 const gridMargin = 16
 const maxVisiblePageNumber = 3
 const currentSelection = ref<Record<string, any>[]>([])
+const localColumns = ref<GridColumns[]>([])
 const sortState = ref<SortState[]>([])
 const filterState = ref<FilterState[]>([])
 const groupeState = ref<GroupState[]>([])
@@ -87,6 +87,7 @@ const disableNextPage = ref(false)
 const disableFirstPage = ref(false)
 const disableLastPage = ref(false)
 const draggedColTitle = ref('')
+const openMenuField = ref<string | null>(null)
 const dragX = ref(0)
 const dragY = ref(0)
 const pageSize = ref(pageSizes[0]?.value as number)
@@ -99,6 +100,76 @@ transparentImg.src =
   'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
 
 // Computed
+const visibleColumns = computed(() => {
+  const columns = localColumns.value
+  return columns.filter((x) => !x.hidden)
+})
+
+const localDataItem = computed(() => {
+  let data: Record<string, any>[] = props.dataItems
+
+  // Filter
+  if (filterState.value.length > 0 && props.filterable && props.isClientFilter) {
+    data = data.filter((item) =>
+      filterState.value.every((filter) => {
+        const cellValue = item[filter.field]
+        if (cellValue == null) return false
+        return String(cellValue).toLowerCase().includes(filter.value.toLowerCase())
+      }),
+    )
+  }
+
+  // Sort
+  if (sortState.value.length > 0 && props.isClientSort) {
+    data = [...data].sort((a, b) => {
+      for (const sort of sortState.value) {
+        const comparison = compareValues(a[sort.field], b[sort.field])
+        if (comparison !== 0) {
+          return sort.direction === SortDirection.ascending ? comparison : -comparison
+        }
+      }
+      return 0
+    })
+  }
+
+  // Group
+  if (groupeState.value.length > 0 && props.groupable) {
+    const fields = groupeState.value.map((g) => g.field)
+
+    const ordered = groupData(data, fields)
+      .filter((i): i is RowItem => i.type === 'row')
+      .map((i) => i.row)
+
+    const pageRows = ordered.slice(pageState.value.skip, pageState.value.take)
+    const result = groupData(pageRows, fields)
+    return result
+  }
+
+  data = data.slice(pageState.value.skip, pageState.value.take)
+
+  return data
+})
+
+const groupedItems = computed(() => localDataItem.value as DisplayItem[])
+
+const pageCount = computed(() => {
+  if (filterState.value.length > 0 && props.filterable && props.isClientFilter) {
+    return Math.ceil(localDataItem.value.length / pageSize.value)
+  } else {
+    return Math.ceil(props.dataItems.length / pageSize.value)
+  }
+})
+
+const visiblePages = computed(() => {
+  let rangeArray = Array.from({ length: pageCount.value }, (_, i) => i + 1)
+  let pages = []
+  const start = Math.floor((selectedPage.value - 1) / maxVisiblePageNumber) * maxVisiblePageNumber
+  const end = start + maxVisiblePageNumber
+  pages = rangeArray.slice(start, end)
+  return pages
+})
+
+// Methods
 const calcHeight = (): string => {
   if (props.customHeight !== 0) {
     return props.customHeight - gridMargin + 'px'
@@ -109,6 +180,33 @@ const calcHeight = (): string => {
 const capitalizeTitleCol = (colname: string): string => {
   if (!colname) return colname
   return colname.charAt(0).toUpperCase() + colname.slice(1)
+}
+
+const displayHiddenColumns = (col: GridColumns) => {
+  openMenuField.value = openMenuField.value === col.field ? null : col.field
+}
+
+const onChangeHiddenColumns = (event: Event, col: GridColumns) => {
+  const checked = (event.target as HTMLInputElement).checked
+  const column = localColumns.value.find((c) => c.field === col.field)
+  if (column) {
+    column.hidden = !checked
+  }
+}
+
+const closeMenu = () => (openMenuField.value = null)
+
+const isGroupItem = (item: DisplayItem): item is GroupItem => item.type === 'group'
+
+const computeTotalRows = (): string => {
+  if (filterState.value.length > 0 && props.filterable && props.isClientFilter) {
+    const rowsCount = localDataItem.value.filter(
+      (item: Record<string, any>) => item.type !== 'group',
+    ).length
+    return rowsCount + ' total rows'
+  } else {
+    return props.dataItems.length + ' total rows'
+  }
 }
 
 const displayCell = (col: GridColumns, row: any): string => {
@@ -209,84 +307,6 @@ const groupData = (
   return result
 }
 
-const localDataItem = computed(() => {
-  let data: Record<string, any>[] = props.dataItems
-
-  // Filter
-  if (filterState.value.length > 0 && props.filterable && props.isClientFilter) {
-    data = data.filter((item) =>
-      filterState.value.every((filter) => {
-        const cellValue = item[filter.field]
-        if (cellValue == null) return false
-        return String(cellValue).toLowerCase().includes(filter.value.toLowerCase())
-      }),
-    )
-  }
-
-  // Sort
-  if (sortState.value.length > 0 && props.isClientSort) {
-    data = [...data].sort((a, b) => {
-      for (const sort of sortState.value) {
-        const comparison = compareValues(a[sort.field], b[sort.field])
-        if (comparison !== 0) {
-          return sort.direction === SortDirection.ascending ? comparison : -comparison
-        }
-      }
-      return 0
-    })
-  }
-
-  // Group
-  if (groupeState.value.length > 0 && props.groupable) {
-    const fields = groupeState.value.map((g) => g.field)
-
-    const ordered = groupData(data, fields)
-      .filter((i): i is RowItem => i.type === 'row')
-      .map((i) => i.row)
-
-    const pageRows = ordered.slice(pageState.value.skip, pageState.value.take)
-    const result = groupData(pageRows, fields)
-    return result
-  }
-
-  data = data.slice(pageState.value.skip, pageState.value.take)
-
-  return data
-})
-
-const groupedItems = computed(() => localDataItem.value as DisplayItem[])
-
-const isGroupItem = (item: DisplayItem): item is GroupItem => item.type === 'group'
-
-const computeTotalRows = (): string => {
-  if (filterState.value.length > 0 && props.filterable && props.isClientFilter) {
-    const rowsCount = localDataItem.value.filter(
-      (item: Record<string, any>) => item.type !== 'group',
-    ).length
-    return rowsCount + ' total rows'
-  } else {
-    return props.dataItems.length + ' total rows'
-  }
-}
-
-const pageCount = computed(() => {
-  if (filterState.value.length > 0 && props.filterable && props.isClientFilter) {
-    return Math.ceil(localDataItem.value.length / pageSize.value)
-  } else {
-    return Math.ceil(props.dataItems.length / pageSize.value)
-  }
-})
-
-const visiblePages = computed(() => {
-  let rangeArray = Array.from({ length: pageCount.value }, (_, i) => i + 1)
-  let pages = []
-  const start = Math.floor((selectedPage.value - 1) / maxVisiblePageNumber) * maxVisiblePageNumber
-  const end = start + maxVisiblePageNumber
-  pages = rangeArray.slice(start, end)
-  return pages
-})
-
-// Methods
 const baseProps = (col: GridColumns) => ({
   field: col.field,
   value: getFilterValue(col.field),
@@ -521,6 +541,13 @@ const onPageChange = (event: Event) => {
   selectPage(1)
 }
 
+onMounted(() => {
+  localColumns.value = (props.columns ?? []).map((c) => ({ ...c }))
+  document.addEventListener('click', closeMenu)
+})
+
+onBeforeUnmount(() => document.removeEventListener('click', closeMenu))
+
 // Helpers
 const compareValues = (aVal: any, bVal: any): number => {
   if (aVal instanceof Date && bVal instanceof Date) {
@@ -577,20 +604,39 @@ const compareValues = (aVal: any, bVal: any): number => {
         <tr>
           <th
             class="t-header"
-            v-for="(col, idx) in props.columns?.filter((x) => !x.hidden)"
+            v-for="(col, idx) in visibleColumns"
             :key="idx"
             draggable="true"
             @dragstart="onHeaderDragStart($event, col)"
             @drag=""
             @dragend="onHeaderDragEnd"
-            @click="sortList($event, col.field)"
           >
-            <span>{{ capitalizeTitleCol(col.title) }}</span>
+            <span class="t-title" @click="sortList($event, col.field)">
+              {{ capitalizeTitleCol(col.title) }}
+            </span>
             <span class="spaceInLeft" :class="getDirectionClass(col.field)"></span>
+            <span
+              class="fa-solid fa-ellipsis-vertical t-th-dots"
+              @click.stop="displayHiddenColumns(col)"
+            ></span>
+            <div class="t-hidden-columns" v-if="openMenuField === col.field" @click.stop>
+              <div class="t-hidden-columns-item" v-for="cols in localColumns">
+                <span>
+                  <input
+                    type="checkbox"
+                    name="hiddenColumns"
+                    id="hiddenColumns"
+                    :checked="!cols.hidden"
+                    @change="onChangeHiddenColumns($event, cols)"
+                  />
+                </span>
+                <span class="t-hidden-columns-item-title">{{ cols.title }}</span>
+              </div>
+            </div>
           </th>
         </tr>
         <tr class="t-filter-row" v-if="props.filterable">
-          <th v-for="(col, idx) in props.columns" :key="idx">
+          <th v-for="(col, idx) in localColumns" :key="idx">
             <template v-if="col.filterable">
               <dateFilterTemplate
                 v-if="col.filterCell == dateFilterTemplateSlot"
@@ -617,7 +663,7 @@ const compareValues = (aVal: any, bVal: any): number => {
             <template v-if="!item.ancestors.some((k) => isGroupCollapsed(k))">
               <!-- group row -->
               <tr v-if="isGroupItem(item)" class="group-row">
-                <td :colspan="props.columns?.length">
+                <td :colspan="localColumns?.length">
                   <div class="group-row-label" :style="{ paddingLeft: item.level * 20 + 'px' }">
                     <span
                       :class="getCollapseClassIcon(isGroupCollapsed(item.key))"
@@ -634,7 +680,7 @@ const compareValues = (aVal: any, bVal: any): number => {
                 :class="selectedRowClass(item.row)"
                 @click="selectionChange($event, item.row)"
               >
-                <td v-for="(col, colIdx) in props.columns?.filter((x) => !x.hidden)" :key="colIdx">
+                <td v-for="(col, colIdx) in visibleColumns" :key="colIdx">
                   {{ displayCell(col, item.row) }}
                 </td>
               </tr>
@@ -650,7 +696,7 @@ const compareValues = (aVal: any, bVal: any): number => {
             :class="selectedRowClass(row)"
             @click="selectionChange($event, row)"
           >
-            <td v-for="(col, colIdx) in props.columns?.filter((x) => !x.hidden)" :key="colIdx">
+            <td v-for="(col, colIdx) in visibleColumns" :key="colIdx">
               {{ displayCell(col, row) }}
             </td>
           </tr>
