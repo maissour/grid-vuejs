@@ -8,11 +8,6 @@ export interface GridColumns {
     cell?: ((h: any, defaultRendering: any | null, props: GridFilterCellProps, listeners: any) => any) | string | any;
 }
 
-export interface HiddenColumns {
-    field: string;
-    hidden: boolean
-}
-
 export interface SortState {
     field: string;
     direction: string
