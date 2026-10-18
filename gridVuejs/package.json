@@ -1,22 +1,50 @@
 {
   "name": "gridvuejs",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "A reusable Vue 3 data grid component with filtering, sorting, grouping, and pagination.",
+  "license": "MIT",
+  "keywords": [
+  "vue",
+  "vue3",
+  "vuejs",
+  "data-grid",
+  "grid",
+  "table",
+  "data-table",
+  "typescript",
+  "sorting",
+  "filtering",
+  "grouping",
+  "pagination"
+  ],
   "type": "module",
+  "main": "./dist/gridvuejs.cjs",
+  "module": "./dist/gridvuejs.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/gridvuejs.js",
+      "require": "./dist/gridvuejs.cjs"
+    },
+    "./style.css": "./dist/gridvuejs.css"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
-    "format": "prettier --write --experimental-cli src/"
+    "format": "prettier --write --experimental-cli src/",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.3.1",
     "@fortawesome/fontawesome-svg-core": "^7.3.1",
-    "pinia": "^3.0.4",
-    "vue": "^3.5.32",
-    "vue-router": "^5.0.4"
+    "vue": "^3.5.32"
   },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.4",
@@ -29,6 +57,9 @@
     "vite": "^8.0.8",
     "vite-plugin-vue-devtools": "^8.1.1",
     "vue-tsc": "^3.2.6"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.0"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

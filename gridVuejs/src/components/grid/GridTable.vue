@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import '@/assets/style.css'
 import { computed, ref, type PropType, onMounted, onBeforeUnmount, defineComponent, h } from 'vue'
 import {
   SortDirection,
@@ -823,7 +824,3 @@ function cellValue(row: unknown, col: GridColumns) {
     </div>
   </div>
 </template>
-
-<style scoped>
-@import url('@/assets/style.css');
-</style>
