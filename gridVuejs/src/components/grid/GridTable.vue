@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, type PropType, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, type PropType, onMounted, onBeforeUnmount, defineComponent, h } from 'vue'
 import {
   SortDirection,
   type DisplayItem,
@@ -221,6 +221,23 @@ const displayCell = (col: GridColumns, row: any): string => {
   if (isNaN(date.getTime())) return String(value)
 
   return formatDateDynamic(date, col.format)
+}
+
+const CellRenderer = (p: { col: GridColumns; row: any }) => {
+  const { col, row } = p
+  const cell = col.cell
+  const props = { dataItem: row, field: col.field, value: row[col.field] }
+
+  if (typeof cell === 'function') return cell(h, displayCell(col, row), props, {})
+  return h(cell, props)
+}
+
+const FilterCellRenderer = (col: GridColumns) => {
+  const cell = col.filterCell
+  const props = { column: col }
+
+  if (typeof cell === 'function') return cell(h, col, props, {})
+  return h(cell, props)
 }
 
 const selectedRowClass = (dataItem: Record<string, any>): string => {
@@ -566,6 +583,10 @@ const compareValues = (aVal: any, bVal: any): number => {
   if (aVal > bVal) return 1
   return 0
 }
+
+function cellValue(row: unknown, col: GridColumns) {
+  return (row as Record<string, any>)[col.field]
+}
 </script>
 
 <template>
@@ -639,17 +660,23 @@ const compareValues = (aVal: any, bVal: any): number => {
           <th v-for="(col, idx) in localColumns" :key="idx">
             <template v-if="col.filterable">
               <dateFilterTemplate
-                v-if="col.filterCell == dateFilterTemplateSlot"
+                v-if="col.filterCell === dateFilterTemplateSlot"
                 :templateProps="getDateFilterProps(col).templateProps"
               />
 
               <dropDownlistTemplate
-                v-if="col.filterCell == dropdownListFilterTemplateSlot"
+                v-if="col.filterCell === dropdownListFilterTemplateSlot"
                 :templateProps="getDropdownFilterProps(col).templateProps"
               />
 
+              <component
+                v-else-if="col.filterCell && typeof col.filterCell !== 'string'"
+                :is="FilterCellRenderer"
+                :col="col"
+              />
+
               <textFilterTemplate
-                v-if="col.filterCell == textFilterTemplateSlot || col.filterCell == undefined"
+                v-if="col.filterCell === textFilterTemplateSlot || col.filterCell == undefined"
                 :templateProps="getTextFilterProps(col).templateProps"
               />
             </template>
@@ -681,7 +708,27 @@ const compareValues = (aVal: any, bVal: any): number => {
                 @click="selectionChange($event, item.row)"
               >
                 <td v-for="(col, colIdx) in visibleColumns" :key="colIdx">
-                  {{ displayCell(col, item.row) }}
+                  <!-- 1. Slot provided by the parent: <template #cell-isActive="{ row, value }"> -->
+                  <slot
+                    v-if="$slots[`cell-${col.field}`]"
+                    :name="`cell-${col.field}`"
+                    :row="item.row"
+                    :value="cellValue(item.row, col)"
+                    :column="col"
+                  />
+
+                  <!-- 2. Custom component or render function from col.cell -->
+                  <component
+                    v-else-if="col.cell && typeof col.cell !== 'string'"
+                    :is="CellRenderer"
+                    :col="col"
+                    :row="item.row"
+                  />
+
+                  <!-- 3. Default text -->
+                  <template v-else>
+                    {{ displayCell(col, item.row) }}
+                  </template>
                 </td>
               </tr>
             </template>
@@ -697,7 +744,27 @@ const compareValues = (aVal: any, bVal: any): number => {
             @click="selectionChange($event, row)"
           >
             <td v-for="(col, colIdx) in visibleColumns" :key="colIdx">
-              {{ displayCell(col, row) }}
+              <!-- 1. Slot provided by the parent: <template #cell-isActive="{ row, value }"> -->
+              <slot
+                v-if="$slots[`cell-${col.field}`]"
+                :name="`cell-${col.field}`"
+                :row="row"
+                :value="cellValue(row, col)"
+                :column="col"
+              />
+
+              <!-- 2. Custom component or render function from col.cell -->
+              <component
+                v-else-if="col.cell && typeof col.cell !== 'string'"
+                :is="CellRenderer"
+                :col="col"
+                :row="row"
+              />
+
+              <!-- 3. Default text -->
+              <template v-else>
+                {{ displayCell(col, row) }}
+              </template>
             </td>
           </tr>
         </template>

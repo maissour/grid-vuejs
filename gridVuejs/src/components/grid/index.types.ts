@@ -5,7 +5,7 @@ export interface GridColumns {
     filterable?: boolean;
     format?: string;
     filterCell?: ((h: any, defaultRendering: any | null, props: GridFilterCellProps, listeners: any) => any) | string | any;
-    cell?: ((h: any, defaultRendering: any | null, props: GridFilterCellProps, listeners: any) => any) | string | any;
+    cell?: ((h: any, defaultRendering: any | null, props: GridCellProps, listeners: any) => any) | string | any;
 }
 
 export interface SortState {
@@ -32,6 +32,12 @@ export interface GridFilterCellProps {
     field: string;
     value: string;
     filterType: string;
+}
+
+export interface GridCellProps {
+    dataItem: any, 
+    field: string, 
+    value: any, 
 }
 
 export interface IdTextDto {

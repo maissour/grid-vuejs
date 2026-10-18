@@ -17,6 +17,17 @@ const columns: GridColumns[] = [
     filterable: true,
   },
   {
+    title: 'active',
+    field: 'isActive',
+    filterable: true,
+    cell: (h: any, defaultRendering: string, props: any) =>
+      h(
+        'span',
+        { class: props.value ? 'badge-green' : 'badge-red' },
+        props.value ? '✔ Active' : '✘ Inactive',
+      ),
+  },
+  {
     title: 'age',
     field: 'age',
     filterable: true,
