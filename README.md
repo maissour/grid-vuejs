@@ -3,6 +3,7 @@
 # Vuejs Grid
 
 **A lightweight, fast, and fully customizable data grid component for Vue 3**
+This template should help get you started developing with Vue 3 in Vite.
 [Report Bug](https://github.com/maissour/vue-grid/issues)
 [Request Feature](https://github.com/maissour/vue-grid/issues)
 
@@ -19,10 +20,6 @@
 - **Composable API** : powered by the Composition API
 - **Framework agnostic styling** : plain CSS
 ---
-
-# gridVuejs
-
-This template should help get you started developing with Vue 3 in Vite.
 
 ## Recommended IDE Setup
 
